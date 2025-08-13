@@ -1,55 +1,75 @@
-# Pomodoro Report
-개인의 포모도로 세션 정보를 가지고 분석 리포트를 만들어주는 서비스
+# Kotlin Exposed 라이브러리
+
+이 프로젝트는 데이터베이스 접근을 위해 JetBrains에서 개발한 Kotlin 기반의 경량 SQL 라이브러리인 [Exposed](https://github.com/JetBrains/Exposed)를 사용합니다. 
+
+
+Exposed는 Kotlin 코드로 데이터베이스 스키마를 쉽게 정의하고, 타입 안전한 방식으로 쿼리를 작성할 수 있게 해주는 다양한 장점을 가진 도구로, 실험적으로 사용하게 되었습니다.
 
 ---
-## 설계
-1. 아키텍처
-2. 도메인
+
+## Exposed 개요
+
+Exposed는 데이터베이스와 상호작용하기 위한 두 가지 주요 방식을 제공합니다.
+
+### 1. DSL (Domain Specific Language) 방식
+
+DSL 방식은 SQL 쿼리를 코틀린 코드로 직접 작성하는 것과 비슷합니다.
+
+SQL에 익숙한 개발자에게 매우 직관적이며, 복잡한 쿼리나 세밀한 제어가 필요할 때 사용합니다.
+
+모든 쿼리는 코틀린 컴파일러에 의해 타입 체크가 되어, 런타임 에러를 줄이고 안전성을 높일 수 있습니다.
+
+**특징**
+- **타입 안전**
+- **SQL과 유사한 문법**
+- **최대 유연성**: 복잡한 JOIN, 서브쿼리, 집계 함수 등을 자유롭게 사용
+
+### 2. DAO (Data Access Object) 방식
+
+DAO 방식은 JPA나 Hibernate와 같은 전통적인 ORM 프레임워크와 비슷한 객체지향적 접근을 제공합니다. 
+
+데이터베이스 테이블의 각 행(Row)은 객체(Entity) 인스턴스에 매핑되며, 이 객체의 속성을 변경하거나 메서드를 호출하여 CRUD 작업을 수행할 수 있습니다.
+
+**특징**
+- **객체지향적**
+- **생산성**: 간단한 CRUD 작업의 경우 DSL보다 적고 간단하게 구현 가능
+- **추상화**: SQL을 직접 다루지 않고 편하게 비즈니스 로직에 집중
 
 ---
-## 1. 아키텍처
-- Layered Architecture
-- Domain Driven Design
+
+## Exposed와 JPA의 차이점
+
+Exposed와 JPA(Java Persistence API)는 모두 데이터베이스 작업을 위한 기술이지만, 라이브러리 철학과 접근 방식에서 몇 가지 차이점이 있습니다.
+
+| 특징 | Kotlin Exposed                | JPA (Hibernate 등)            |
+| :--- |:------------------------------|:-----------------------------|
+| **주요 패러다임** | 타입 안전한 SQL DSL, 경량 DAO        | 완전한 기능의 ORM(객체-관계 매핑)        |
+| **추상화 수준** | 낮음 (SQL에 더 가까움)               | 높음 (SQL을 거의 숨김)              |
+| **언어** | **코틀린 네이티브**                  | 자바 표준 (코틀린에서 사용 가능)          |
+| **타입 안전성** | **컴파일 시점** (DSL 기준)           | 런타임 시점 (JPQL 등)              |
+| **유연성** | 높음 (필요시 순수 SQL 실행 용이)         | 상대적으로 제한적 (네이티브 쿼리 가능)       |
+| **비동기 지원** | **코루틴(Coroutine)을 통한 비동기 지원** | 전통적으로 동기적 (가상 스레드 등으로 커버 시도) |
 
 
----
-## 2. 도메인
-- User
-- PomodoroSession
-- PomodoroReport
+### JPA 대비 Exposed의 차별점
 
-### User
-사용자 정보를 담는다.
+1.  **코틀린 친화성 (Kotlin-First)**
+    - 데이터 클래스, `val`/`var`, nullable 타입 등 코틀린의 언어적 특성을 완전히 활용
+    - 반면, JPA를 코틀린에서 사용하려면 `open` 클래스, `no-arg` 생성자 등 JPA의 요구사항을 맞추기 위해 `all-open` 같은 컴파일러 플러그인에 의존하는 등 불편한 점 다수 존재
 
-- userId: Long (PK)
-- email
-- nickname
-- pomodoroTimeSetting (value object)
-  - workTime
-  - shortRestTime
-  - longRestTime
+2.  **쿼리 제어권과 투명성**
+    - Exposed는 N+1 문제를 자동으로 방지하지는 않으나, 쿼리가 코드에 명시적으로 드러나기 때문에 JPA의 영속성 컨텍스트 뒤에서 발생할 수 있는 N+1 같은 상황을 개발자가 쉽게 인지하고 제어 가능함
+    - **쿼리 실행 시점과 과정이 투명하다**는 장점이 있고, 성능 최적화와 디버깅에 용이
 
+3.  **명시적인 트랜잭션 관리**
+    - Exposed는 `transaction { ... }` 블록을 사용하여 트랜잭션의 범위를 코드 레벨에서 명확하게 지정
+    - `@Transactional` 어노테이션을 통해 AOP로 동작하는 것보다 효율적 + 트랜잭션 내부 세밀한 제어 가능
+    - 특히, DB 커넥션 풀을 더 효율적으로 사용한다. (유휴 대기 시간을 줄일 수 있음)
+      - `@Transactional` 방식은 메서드 전체에 커넥션을 물고 있지만, 트랜잭션 코드 블록을 사용하면 블록이 끝났을 때 커넥션을 바로 반납한다.
 
-### PomodoroSession
-사용자의 포모도로 세션 정보를 담는다.
-
-- sessionId: Long (PK)
-- userId
-- topic
-- type (ENUM - WORK, SHORT_REST, LONG_REST)
-- startTime
-- endTime
+4.  **경량성**
+    - Exposed는 JPA 구현체(e.g., Hibernate)에 비해 훨씬 가벼움
+    - 복잡한 영속성 컨텍스트나 프록시 객체 생성이 없음
 
 
-### PomodoroReport
-사용자의 포모도로 리포트 정보를 담는다. 콘텐츠 안에는 리포트의 세부 내용이 있다.
-
-- reportDate
-- userId
-- type (ENUM - DAILY, WEEKLY, MONTHLY)
-- startTime
-- endTime
-- content
-
-
-
+각 기술의 철학과 특징에 따라 한 줄로 비교해서 정리하자면, Exposed는 코틀린다운 명시성과 제어권을 추구하고 JPA는 높은 객체지향 표현성과 추상화를 제공한다고 볼 수 있다.
